@@ -132,25 +132,105 @@ static uint64 (*syscalls[])(void) = {
 };
 
 
+static char *syscall_names[] = {
+  [SYS_fork]    "fork",
+  [SYS_exit]    "exit",
+  [SYS_wait]    "wait",
+  [SYS_pipe]    "pipe",
+  [SYS_read]    "read",
+  [SYS_kill]    "kill",
+  [SYS_exec]    "exec",
+  [SYS_fstat]   "fstat",
+  [SYS_chdir]   "chdir",
+  [SYS_dup]     "dup",
+  [SYS_getpid]  "getpid",
+  [SYS_sbrk]    "sbrk",
+  [SYS_sleep]   "sleep",
+  [SYS_uptime]  "uptime",
+  [SYS_open]    "open",
+  [SYS_write]   "write",
+  [SYS_mknod]   "mknod",
+  [SYS_unlink]  "unlink",
+  [SYS_link]    "link",
+  [SYS_mkdir]   "mkdir",
+  [SYS_close]   "close",
+  [SYS_trace]   "trace",
+};
 
 
-
-void
-syscall(void)
+void syscall(void)
 {
   int num;
   struct proc *p = myproc();
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // Use num to lookup the system call function for num, call it,
-    // and store its return value in p->trapframe->a0
+    uint64 arg0 = p->trapframe->a0;
+    uint64 arg1 = p->trapframe->a1;
+
     p->trapframe->a0 = syscalls[num]();
+
+    if (p->traced) {
+      int printed_string = 0;
+      char sbuf[128];
+
+      if (num == SYS_open || num == SYS_unlink ||
+          num == SYS_chdir || num == SYS_mkdir || num == SYS_link) {
+        if (fetchstr(arg0, sbuf, sizeof(sbuf)) >= 0) {
+          printed_string = 1;
+          printf("[pid %d] %s(\"%s\") = %d\n",
+                 p->pid, syscall_names[num], sbuf, (int)p->trapframe->a0);
+        } else {
+          printed_string = 1;
+          printf("[pid %d] %s(%s) = %d\n",
+                 p->pid, syscall_names[num], "<bad ptr>", (int)p->trapframe->a0);
+        }
+      } else if (num == SYS_exec) {
+        uint64 argv0_uaddr = 0;
+        if (fetchaddr(arg1, &argv0_uaddr) >= 0 && argv0_uaddr != 0 &&
+            fetchstr(argv0_uaddr, sbuf, sizeof(sbuf)) >= 0) {
+          printed_string = 1;
+          printf("[pid %d] %s(\"%s\") = %d\n",
+                 p->pid, syscall_names[num], sbuf, (int)p->trapframe->a0);
+        } else {
+          printed_string = 1;
+          printf("[pid %d] %s(%s) = %d\n",
+                 p->pid, syscall_names[num], "<bad ptr>", (int)p->trapframe->a0);
+        }
+      }
+
+      if (!printed_string) {
+        printf("[pid %d] %s(%d) = %d\n",
+               p->pid,
+               (num >= 0 && num < NELEM(syscall_names) && syscall_names[num]) ?
+                 syscall_names[num] : "unknown",
+               (int)arg0,
+               (int)p->trapframe->a0);
+      }
+    }
+
   } else {
-    printf("%d %s: unknown sys call %d\n",
-            p->pid, p->name, num);
+    printf("%d %s: unknown sys call %d\n", p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
 }
+
+// void
+// syscall(void)
+// {
+//   int num;
+//   struct proc *p = myproc();
+
+//   num = p->trapframe->a7;
+//   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+//     // Use num to lookup the system call function for num, call it,
+//     // and store its return value in p->trapframe->a0
+//     p->trapframe->a0 = syscalls[num]();
+//   } else {
+//     printf("%d %s: unknown sys call %d\n",
+//             p->pid, p->name, num);
+//     p->trapframe->a0 = -1;
+//   }
+// }
 
 
