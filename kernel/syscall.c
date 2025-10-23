@@ -158,56 +158,68 @@ static char *syscall_names[] = {
 };
 
 
-void syscall(void)
-{
-  int num;
-  struct proc *p = myproc();
 
-  num = p->trapframe->a7;
-  if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+static void
+trace_syscall(struct proc *p, int num, uint64 arg0, uint64 arg1, int ret, int have_execname, char *execname)
+{
+  if (!p->traced) return;
+
+  const char *name =
+    (num >= 0 && num < NELEM(syscall_names) && syscall_names[num])
+      ? syscall_names[num] : "unknown";
+
+  // String-first-argument syscalls
+  if (num == SYS_open || num == SYS_unlink || num == SYS_chdir || num == SYS_mkdir || num == SYS_link) {
+    char s[128];
+    if (fetchstr(arg0, s, sizeof(s)) >= 0)
+      printf("[pid %d] %s(\"%s\") = %d\n", p->pid, name, s, ret);
+    else
+      printf("[pid %d] %s(%s) = %d\n", p->pid, name, "<bad ptr>", ret);
+    return;
+  }
+
+  // exec: print argv[0] captured BEFORE dispatch
+  if (num == SYS_exec) {
+    if (have_execname)
+      printf("[pid %d] %s(\"%s\") = %d\n", p->pid, name, execname, ret);
+    else
+      printf("[pid %d] %s(%s) = %d\n", p->pid, name, "<bad ptr>", ret);
+    return;
+  }
+
+  // Default: print first argument as integer
+  printf("[pid %d] %s(%d) = %d\n", p->pid, name, (int)arg0, ret);
+}
+
+
+void
+syscall(void)
+{
+  struct proc *p = myproc();
+  int num = p->trapframe->a7;
+
+  if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // Save first two args before calling into the syscall
     uint64 arg0 = p->trapframe->a0;
     uint64 arg1 = p->trapframe->a1;
 
-    p->trapframe->a0 = syscalls[num]();
-
-    if (p->traced) {
-      int printed_string = 0;
-      char sbuf[128];
-
-      if (num == SYS_open || num == SYS_unlink ||
-          num == SYS_chdir || num == SYS_mkdir || num == SYS_link) {
-        if (fetchstr(arg0, sbuf, sizeof(sbuf)) >= 0) {
-          printed_string = 1;
-          printf("[pid %d] %s(\"%s\") = %d\n",
-                 p->pid, syscall_names[num], sbuf, (int)p->trapframe->a0);
-        } else {
-          printed_string = 1;
-          printf("[pid %d] %s(%s) = %d\n",
-                 p->pid, syscall_names[num], "<bad ptr>", (int)p->trapframe->a0);
-        }
-      } else if (num == SYS_exec) {
-        uint64 argv0_uaddr = 0;
-        if (fetchaddr(arg1, &argv0_uaddr) >= 0 && argv0_uaddr != 0 &&
-            fetchstr(argv0_uaddr, sbuf, sizeof(sbuf)) >= 0) {
-          printed_string = 1;
-          printf("[pid %d] %s(\"%s\") = %d\n",
-                 p->pid, syscall_names[num], sbuf, (int)p->trapframe->a0);
-        } else {
-          printed_string = 1;
-          printf("[pid %d] %s(%s) = %d\n",
-                 p->pid, syscall_names[num], "<bad ptr>", (int)p->trapframe->a0);
-        }
-      }
-
-      if (!printed_string) {
-        printf("[pid %d] %s(%d) = %d\n",
-               p->pid,
-               (num >= 0 && num < NELEM(syscall_names) && syscall_names[num]) ?
-                 syscall_names[num] : "unknown",
-               (int)arg0,
-               (int)p->trapframe->a0);
+    // --- exec fix: capture argv[0] BEFORE dispatch (old pagetable) ---
+    int have_execname = 0;
+    char execname[128];
+    if (p->traced && num == SYS_exec) {
+      uint64 argv0 = 0;
+      if (fetchaddr(arg1, &argv0) >= 0 && argv0 &&
+          fetchstr(argv0, execname, sizeof(execname)) >= 0) {
+            have_execname = 1;
       }
     }
+    // ----------------------------------------------------------------
+
+    int ret = (int)syscalls[num]();   // call real syscall
+    p->trapframe->a0 = ret;
+
+    // Single-line trace print (this won't suppress user output; it just avoids interleaving within a line)
+    trace_syscall(p, num, arg0, arg1, ret, have_execname, execname);
 
   } else {
     printf("%d %s: unknown sys call %d\n", p->pid, p->name, num);
