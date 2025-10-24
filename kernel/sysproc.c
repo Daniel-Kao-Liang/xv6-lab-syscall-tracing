@@ -99,6 +99,7 @@ sys_uptime(void)
 int sys_trace(void)
 {
   int pid;
+  argint(0, &pid);
   struct proc *tp = find_proc_by_pid(pid);
   if (tp == 0) {
     return -1;

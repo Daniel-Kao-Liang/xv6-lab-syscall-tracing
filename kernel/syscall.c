@@ -166,20 +166,15 @@ syscall(void)
   int num = p->trapframe->a7;
 
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // 先把呼叫前的前兩個參數存下來（exec 會用到 argv 指標）
     uint64 saved_a0 = p->trapframe->a0; // 第 1 個參數
-    uint64 saved_a1 = p->trapframe->a1; // 第 2 個參數（exec 的 argv）
+    uint64 saved_a1 = p->trapframe->a1; // 第 2 個參數（exec 的 argv)
 
-    // 執行系統呼叫；回傳值會放回 a0
     p->trapframe->a0 = syscalls[num]();
 
-    // 若該行程被 trace，就依規則列印
     if (p->traced) {
       char *name = (num < NELEM(syscall_names) && syscall_names[num])
                      ? syscall_names[num]
                      : "unknown";
-
-      // 對五個以字串為第一參數的系統呼叫，印出 "字串"
       if (num == SYS_open || num == SYS_unlink ||
           num == SYS_chdir || num == SYS_mkdir || num == SYS_link) {
         char s[128];
@@ -193,35 +188,7 @@ syscall(void)
       }
       // exec：列印 argv[0] 的程式名（若失敗再退而求其次印 path）
       else if (num == SYS_exec) {
-        uint64 uargv0 = 0;
-        // saved_a1 是 argv；讀出 argv[0] 的位址
-        if (saved_a1 != 0 && fetchaddr(saved_a1, &uargv0) >= 0) {
-          char prog[128];
-          if (uargv0 != 0 && fetchstr(uargv0, prog, sizeof(prog)) >= 0) {
-            printf("[pid %d] %s(\"%s\") = %d\n",
-                   p->pid, name, prog, (int)p->trapframe->a0);
-          } else {
-            // 退回去印 path
-            char path[128];
-            if (fetchstr(saved_a0, path, sizeof(path)) >= 0) {
-              printf("[pid %d] %s(\"%s\") = %d\n",
-                     p->pid, name, path, (int)p->trapframe->a0);
-            } else {
-              printf("[pid %d] %s(<bad ptr>) = %d\n",
-                     p->pid, name, (int)p->trapframe->a0);
-            }
-          }
-        } else {
-          // 讀 argv 失敗就印 path
-          char path[128];
-          if (fetchstr(saved_a0, path, sizeof(path)) >= 0) {
-            printf("[pid %d] %s(\"%s\") = %d\n",
-                   p->pid, name, path, (int)p->trapframe->a0);
-          } else {
-            printf("[pid %d] %s(<bad ptr>) = %d\n",
-                   p->pid, name, (int)p->trapframe->a0);
-          }
-        }
+        
       }
       // 其它系統呼叫：列印第一個參數為整數
       else {
