@@ -165,9 +165,19 @@ syscall(void)
   struct proc *p = myproc();
   int num = p->trapframe->a7;
 
+  char pre_prog[128];
+  int pre_have_prog = 0;
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     uint64 saved_a0 = p->trapframe->a0; // 第 1 個參數
     uint64 saved_a1 = p->trapframe->a1; // 第 2 個參數（exec 的 argv)
+    if (p->traced && num == SYS_exec) {
+      uint64 uargv0 = 0;
+      if (saved_a1 != 0 && fetchaddr(saved_a1, &uargv0) >= 0 &&
+          uargv0 != 0 && fetchstr(uargv0, pre_prog, sizeof(pre_prog)) >= 0) {
+        pre_have_prog = 1; // 之後直接用這個字串印
+      }
+    }
+
 
     p->trapframe->a0 = syscalls[num]();
 
@@ -186,9 +196,15 @@ syscall(void)
                  p->pid, name, (int)p->trapframe->a0);
         }
       }
-      // exec：列印 argv[0] 的程式名（若失敗再退而求其次印 path）
       else if (num == SYS_exec) {
-        
+
+        if (pre_have_prog) {
+          printf("[pid %d] exec(\"%s\") = %d\n",
+                 p->pid, pre_prog, (int)p->trapframe->a0);
+        } else {
+          printf("[pid %d] exec(<bad ptr>) = %d\n",
+                 p->pid, (int)p->trapframe->a0);
+        }
       }
       // 其它系統呼叫：列印第一個參數為整數
       else {
