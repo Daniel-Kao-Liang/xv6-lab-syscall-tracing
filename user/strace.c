@@ -16,7 +16,8 @@ main(int argc, char *argv[])
     exit(1);
   }
   if (pid == 0) {
-    // child: exec 目標程式（argv[1]..）
+    int fd = open(NULL, 0);
+    dup2(1, fd);
     exec(argv[1], &argv[1]);
     fprintf(2, "strace: exec %s failed\n", argv[1]);
     exit(1);
