@@ -93,9 +93,6 @@ sys_uptime(void)
 }
 
 
-
-
-
 int sys_trace(void)
 {
   int pid;
