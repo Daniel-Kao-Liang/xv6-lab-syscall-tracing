@@ -4,14 +4,14 @@ xv6 kernel is booting
 hart 1 starting
 hart 2 starting
 init: starting sh
-$ strace mkdir NXUvrE30
+$ strace mkdir LimPv6y4
 [pid 4] exec("mkdir") = 2
-[pid 4] mkdir("NXUvrE30") = 0
-$ strace echo > NXUvrE30/vDynHWnM
+[pid 4] mkdir("LimPv6y4") = 0
+$ strace echo > LimPv6y4/u0jiJbUZ
 [pid 6] exec("echo") = 1
-$ strace mkdir NXUvrE30/rTtYqBMn
+$ strace mkdir LimPv6y4/2koR5Obd
 [pid 8] exec("mkdir") = 2
-[pid 8] mkdir("NXUvrE30/rTtYqBMn") = 0
-$ strace echo > NXUvrE30/rTtYqBMn/vDynHWnM
+[pid 8] mkdir("LimPv6y4/2koR5Obd") = 0
+$ strace echo > LimPv6y4/2koR5Obd/u0jiJbUZ
 [pid 10] exec("echo") = 1
-$ qemu-system-riscv64: terminating on signal 15 from pid 18427 (make)
+$ qemu-system-riscv64: terminating on signal 15 from pid 5115 (make)
